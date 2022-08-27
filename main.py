@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from data.synthetic_dataset import create_synthetic_dataset, SyntheticDataset
 from models.seq2seq import EncoderRNN, DecoderRNN, Net_GRU
-from loss.dilate_loss import dilate_loss
+from loss.dilate_loss import DilateLoss
 from torch.utils.data import DataLoader
 import random
 from tslearn.metrics import dtw, dtw_path
@@ -33,8 +33,8 @@ def train_model(net,loss_type, learning_rate, epochs=1000, gamma = 0.001,
                 print_every=50,eval_every=50, verbose=1, Lambda=1, alpha=0.5):
     
     optimizer = torch.optim.Adam(net.parameters(),lr=learning_rate)
-    criterion = torch.nn.MSELoss()
-    
+    criterion_mse = torch.nn.MSELoss()
+    criterion_dilate = DilateLoss(alpha, gamma, device)
     for epoch in range(epochs): 
         for i, data in enumerate(trainloader, 0):
             inputs, target, _ = data
@@ -44,14 +44,14 @@ def train_model(net,loss_type, learning_rate, epochs=1000, gamma = 0.001,
 
             # forward + backward + optimize
             outputs = net(inputs)
-            loss_mse,loss_shape,loss_temporal = torch.tensor(0),torch.tensor(0),torch.tensor(0)
+            # loss_mse,loss_sha,loss_temporal = torch.tensor(0),torch.tensor(0),torch.tensor(0)
             
             if (loss_type=='mse'):
-                loss_mse = criterion(target,outputs)
+                loss_mse = criterion_mse(target,outputs)
                 loss = loss_mse                   
  
             if (loss_type=='dilate'):    
-                loss, loss_shape, loss_temporal = dilate_loss(target,outputs,alpha, gamma, device)             
+                loss = criterion_dilate(target,outputs)             
                   
             optimizer.zero_grad()
             loss.backward()
@@ -59,7 +59,7 @@ def train_model(net,loss_type, learning_rate, epochs=1000, gamma = 0.001,
         
         if(verbose):
             if (epoch % print_every == 0):
-                print('epoch ', epoch, ' loss ',loss.item(),' loss shape ',loss_shape.item(),' loss temporal ',loss_temporal.item())
+                print('epoch ', epoch, ' loss ',loss.item())#,' loss shape ',loss_shape.item(),' loss temporal ',loss_temporal.item())
                 eval_model(net,testloader, gamma,verbose=1)
   
 
@@ -116,32 +116,32 @@ net_gru_mse = Net_GRU(encoder,decoder, N_output, device).to(device)
 train_model(net_gru_mse,loss_type='mse',learning_rate=0.001, epochs=500, gamma=gamma, print_every=50, eval_every=50,verbose=1)
 
 # Visualize results
-gen_test = iter(testloader)
-test_inputs, test_targets, breaks = next(gen_test)
+# gen_test = iter(testloader)
+# test_inputs, test_targets, breaks = next(gen_test)
 
-test_inputs  = torch.tensor(test_inputs, dtype=torch.float32).to(device)
-test_targets = torch.tensor(test_targets, dtype=torch.float32).to(device)
-criterion = torch.nn.MSELoss()
+# test_inputs  = torch.tensor(test_inputs, dtype=torch.float32).to(device)
+# test_targets = torch.tensor(test_targets, dtype=torch.float32).to(device)
+# criterion = torch.nn.MSELoss()
 
-nets = [net_gru_mse,net_gru_dilate]
+# nets = [net_gru_mse,net_gru_dilate]
 
-for ind in range(1,51):
-    plt.figure()
-    plt.rcParams['figure.figsize'] = (17.0,5.0)  
-    k = 1
-    for net in nets:
-        pred = net(test_inputs).to(device)
+# for ind in range(1,51):
+#     plt.figure()
+#     plt.rcParams['figure.figsize'] = (17.0,5.0)  
+#     k = 1
+#     for net in nets:
+#         pred = net(test_inputs).to(device)
 
-        input = test_inputs.detach().cpu().numpy()[ind,:,:]
-        target = test_targets.detach().cpu().numpy()[ind,:,:]
-        preds = pred.detach().cpu().numpy()[ind,:,:]
+#         input = test_inputs.detach().cpu().numpy()[ind,:,:]
+#         target = test_targets.detach().cpu().numpy()[ind,:,:]
+#         preds = pred.detach().cpu().numpy()[ind,:,:]
 
-        plt.subplot(1,3,k)
-        plt.plot(range(0,N_input) ,input,label='input',linewidth=3)
-        plt.plot(range(N_input-1,N_input+N_output), np.concatenate([ input[N_input-1:N_input], target ]) ,label='target',linewidth=3)   
-        plt.plot(range(N_input-1,N_input+N_output),  np.concatenate([ input[N_input-1:N_input], preds ])  ,label='prediction',linewidth=3)       
-        plt.xticks(range(0,40,2))
-        plt.legend()
-        k = k+1
+#         plt.subplot(1,3,k)
+#         plt.plot(range(0,N_input) ,input,label='input',linewidth=3)
+#         plt.plot(range(N_input-1,N_input+N_output), np.concatenate([ input[N_input-1:N_input], target ]) ,label='target',linewidth=3)   
+#         plt.plot(range(N_input-1,N_input+N_output),  np.concatenate([ input[N_input-1:N_input], preds ])  ,label='prediction',linewidth=3)       
+#         plt.xticks(range(0,40,2))
+#         plt.legend()
+#         k = k+1
 
-    plt.show()
+#     plt.show()
